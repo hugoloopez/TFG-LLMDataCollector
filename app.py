@@ -171,7 +171,6 @@ if user_input:
     config = {"configurable": {"thread_id": thread_id}}
 
     agent_executor = create_react_agent(selected_chat_model, prompt=f" {system_message} /n {user_message}", tools=tools, checkpointer=None)
-    print('SIII')
     with st.chat_message("assistant", avatar=BOT_AVATAR):
         message_placeholder = st.empty()
         start_time = time.time()
