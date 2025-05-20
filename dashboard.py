@@ -273,12 +273,13 @@ app.layout = dbc.Container([
 
     dbc.Row([
         dbc.Col([
-            dcc.Graph(id="grafico_radar"),
+            dcc.Tabs(id="tabs_radar", value="Claude", children=[]),
             dcc.Store(id="store_radar"),
             html.Button("Descargar Radar", id="btn_download_radar", className="btn btn-primary my-2"),
             dcc.Download(id="download_radar")
         ])
     ]),
+
 
     html.Hr(),
 
@@ -319,7 +320,7 @@ def mostrar_dropdown(metrica):
     Output("grafico_barras", "figure"),
     Output("grafico_boxplot", "figure"),
     Output("grafico_dispersion", "figure"),
-    Output("grafico_radar", "figure"),
+    Output("tabs_radar", "children"),
     Output("store_barras", "data"),
     Output("store_boxplot", "data"),
     Output("store_dispersion", "data"),
@@ -428,24 +429,60 @@ def actualizar_graficos(metrica, solo_registrados, orden_barras, modelo_seleccio
         )
 
     labels = ["cosine", "bleu", "meteor", "rougeL"]
-    radar = go.Figure()
-    for _, row in resumen.iterrows():
-        valores = row[labels].tolist() + [row[labels[0]]]
-        radar.add_trace(go.Scatterpolar(
-            r=valores,
-            theta=labels + [labels[0]],
-            fill='toself',
-            name=row["modelo"],
-            line=dict(color=colores_modelos.get(row["modelo"], None))
-        ))
-    radar.update_layout(title="Radar de Métricas", polar=dict(radialaxis=dict(visible=True)), showlegend=True)
+    maximos_globales = resumen[labels].max().values.tolist()
+
+    proveedores = {
+        "Claude": ["Claude-3.5", "Claude-3_Haiku", "Claude-3_Opus", "Claude_3.7_Sonnet_(20250219)"],
+        "OpenAI": ["OpenAI_GPT-3.5", "OpenAI_GPT-4.1", "OpenAI_GPT-4_Turbo", "OpenAI_GPT-4o"],
+        "Gemini": ["Gemini_2.0_Flash", "Gemini_2.0_Flash-Lite", "Gemini_2.5_Pro"],
+        "Otros": ["Cohere_Command_R+", "Deepseek-V3"]
+    }
+
+    radar_tabs = []
+    radar_dict = {}
+
+    for nombre_prov, modelos in proveedores.items():
+        radar_fig = go.Figure()
+        for _, row in resumen[resumen["modelo"].isin(modelos)].iterrows():
+            valores = row[labels].tolist() + [row[labels[0]]]
+            radar_fig.add_trace(go.Scatterpolar(
+                r=valores,
+                theta=labels + [labels[0]],
+                fill='toself',
+                name=row["modelo"],
+                line=dict(color=colores_modelos.get(row["modelo"], None))
+            ))
+
+        radar_fig.update_layout(
+            title=f"Radar de Métricas - {nombre_prov}",
+            polar=dict(radialaxis=dict(visible=True, range=[0, max(maximos_globales)])),
+            showlegend=True,
+            legend=dict(
+                orientation="v",
+                x=0.6,
+                y=1,
+                xanchor="left",
+                yanchor="top",
+                bgcolor="rgba(255,255,255,0.7)",
+                bordercolor="lightgray",
+                borderwidth=1,
+                font=dict(size=14),
+                itemsizing="constant",
+                itemwidth=30        
+            ),
+            margin=dict(t=60, b=40, l=40, r=100)
+        )
+
+        radar_tabs.append(dcc.Tab(label=nombre_prov, value=nombre_prov, children=[dcc.Graph(figure=radar_fig)]))
+        radar_dict[nombre_prov] = radar_fig
+
 
     return (
-        fig_bar, fig_box, fig_disp, radar,
+        fig_bar, fig_box, fig_disp, radar_tabs,
         json.dumps(fig_bar, cls=PlotlyJSONEncoder),
         json.dumps(fig_box, cls=PlotlyJSONEncoder),
         json.dumps(fig_disp, cls=PlotlyJSONEncoder),
-        json.dumps(radar, cls=PlotlyJSONEncoder)
+        json.dumps(radar_tabs, cls=PlotlyJSONEncoder)
     )
 
 
